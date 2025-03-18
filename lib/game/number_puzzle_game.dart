@@ -100,7 +100,7 @@ class NumberPuzzleGame extends FlameGame {
     _instructionsText = TextComponent(
       text:
           "Tap tiles next to the empty space to move them.\nArrange numbers from 1-15 in order!",
-      position: Vector2(size.x / 2, 80),
+      position: Vector2(size.x / 2, 120), // Changed from 80 to 120
       anchor: Anchor.center,
       textRenderer: TextPaint(
         style: const TextStyle(
