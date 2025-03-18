@@ -1,15 +1,22 @@
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'game/number_puzzle_game.dart';
+import 'components/game_start_overlay.dart';
+import 'components/game_over_overlay.dart';
 
 void main() {
   runApp(
     MaterialApp(
       debugShowCheckedModeBanner: false,
       home: Scaffold(
-        body: GameWidget(
+        body: GameWidget<NumberPuzzleGame>(
           game: NumberPuzzleGame(),
-          overlayBuilderMap: {'menu': (context, game) => Container()},
+          overlayBuilderMap: {
+            'start': (context, game) => GameStartOverlay(game: game),
+            'gameOver':
+                (context, game) =>
+                    GameOverOverlay(game: game, moves: game.moves),
+          },
           backgroundBuilder:
               (context) => Container(
                 decoration: const BoxDecoration(

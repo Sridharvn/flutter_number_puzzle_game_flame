@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flame/components.dart';
 import 'package:flame/events.dart';
 import 'package:flutter/material.dart';
@@ -13,7 +14,7 @@ class Tile extends PositionComponent with TapCallbacks, HoverCallbacks {
   bool isHovered = false;
   Vector2 targetPosition = Vector2.zero();
   bool isMoving = false;
-  static const double moveDuration = 0.2; // Movement duration in seconds
+  static const double moveDuration = 0.25; // Slightly longer movement duration
   double moveProgress = 0.0;
   Vector2 startPosition = Vector2.zero();
 
@@ -24,47 +25,49 @@ class Tile extends PositionComponent with TapCallbacks, HoverCallbacks {
       textRenderer: TextPaint(
         style: const TextStyle(
           fontSize: 32,
-          color: Color(0xFF0D47A1),
+          color: Colors.white,
           fontWeight: FontWeight.bold,
         ),
       ),
     );
-    targetPosition = position.clone();
-    startPosition = position.clone();
+    _numberText.anchor = Anchor.center;
   }
 
   @override
-  void onMount() {
-    super.onMount();
+  Future<void> onLoad() async {
+    await super.onLoad();
     _numberText.position = size / 2;
-    _numberText.anchor = Anchor.center;
     add(_numberText);
   }
 
   @override
   void update(double dt) {
     super.update(dt);
-
     if (position != targetPosition) {
       isMoving = true;
       moveProgress = (moveProgress + dt / moveDuration).clamp(0.0, 1.0);
-
-      // Use ease out for smooth deceleration
-      final t = _easeOutCubic(moveProgress);
-      final lerpVector = startPosition + (targetPosition - startPosition) * t;
-      position.setFrom(lerpVector);
+      final newPos = Vector2.zero();
+      newPos.x =
+          startPosition.x +
+          (targetPosition.x - startPosition.x) * _easeOutElastic(moveProgress);
+      newPos.y =
+          startPosition.y +
+          (targetPosition.y - startPosition.y) * _easeOutElastic(moveProgress);
+      position = newPos;
 
       if (moveProgress >= 1.0) {
-        position.setFrom(targetPosition);
         isMoving = false;
         moveProgress = 0.0;
+        position = targetPosition.clone();
       }
     }
   }
 
-  double _easeOutCubic(double t) {
-    final t1 = t - 1.0;
-    return t1 * t1 * t1 + 1.0;
+  // Elastic easing function for more playful movement
+  double _easeOutElastic(double t) {
+    const c4 = (2.0 * math.pi) / 3.0;
+    if (t == 0.0 || t == 1.0) return t;
+    return math.pow(2.0, -10.0 * t) * math.sin((t * 10.0 - 0.75) * c4) + 1.0;
   }
 
   void moveTo(Vector2 newPosition) {
@@ -97,33 +100,29 @@ class Tile extends PositionComponent with TapCallbacks, HoverCallbacks {
 
   @override
   void render(Canvas canvas) {
+    if (isEmpty) return;
+
     final rect = size.toRect();
-    if (!isEmpty) {
-      // Draw tile background with shadow
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(rect.deflate(2), const Radius.circular(8)),
-        _paint,
-      );
+    final rrect = RRect.fromRectAndRadius(rect, const Radius.circular(8));
 
-      // Draw the inner background for number
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(rect.deflate(4), const Radius.circular(6)),
-        _textBgPaint,
-      );
+    // Draw shadow
+    final shadowPaint =
+        Paint()
+          ..color = Colors.black.withOpacity(0.3)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+    canvas.drawRRect(rrect.shift(const Offset(0, 2)), shadowPaint);
 
-      // Draw movement indicator if the tile can be moved
-      if (game.canMoveTile(this)) {
-        final indicatorPaint =
-            Paint()
-              ..color = const Color(0xFF4CAF50)
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 3;
+    // Draw tile with hover effect
+    final tilePaint =
+        Paint()..color = isHovered ? const Color(0xFF1976D2) : _paint.color;
+    canvas.drawRRect(rrect, tilePaint);
 
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(rect.deflate(2), const Radius.circular(7)),
-          indicatorPaint,
-        );
-      }
-    }
+    // Draw inner background for number
+    final innerRect = rect.deflate(8);
+    final innerRRect = RRect.fromRectAndRadius(
+      innerRect,
+      const Radius.circular(4),
+    );
+    canvas.drawRRect(innerRRect, _textBgPaint);
   }
 }

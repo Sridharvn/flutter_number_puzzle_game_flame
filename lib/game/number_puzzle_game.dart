@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flame/game.dart';
 import 'package:flame/components.dart';
+import 'package:flame/input.dart';
 import 'package:flutter/material.dart';
 import '../components/tile.dart';
 import '../components/restart_button.dart';
@@ -13,6 +14,11 @@ class NumberPuzzleGame extends FlameGame {
   int moves = 0;
   bool isComplete = false;
   bool isMoving = false;
+  bool _gameStarted = false;
+
+  // Add move history
+  final List<_GameMove> moveHistory = [];
+
   final Paint _borderPaint =
       Paint()
         ..color = const Color(0xFF0D47A1)
@@ -22,6 +28,9 @@ class NumberPuzzleGame extends FlameGame {
   late TextComponent _movesText;
   late TextComponent _completionText;
   late TextComponent _instructionsText;
+  late ButtonComponent _undoButton;
+
+  bool get gameStarted => _gameStarted;
 
   @override
   Future<void> onLoad() async {
@@ -32,12 +41,61 @@ class NumberPuzzleGame extends FlameGame {
     final boardSize = (tileSize + padding) * gridSize - padding;
     boardPosition = Vector2((size.x - boardSize) / 2, (size.y - boardSize) / 2);
 
+    // Initialize the game but don't start yet
+    initializeGame();
+
+    // Add overlays
+    overlays.add('start');
+  }
+
+  void startGame() {
+    _gameStarted = true;
+    overlays.remove('start');
+    shuffleTiles();
+  }
+
+  void resetGame() {
+    _gameStarted = false;
+    moves = 0;
+    isComplete = false;
+    moveHistory.clear();
+    initializeGame();
+    overlays.remove('gameOver');
+    overlays.add('start');
+  }
+
+  void initializeGame() {
     initializeTiles();
 
     // Add restart button
     final restartButton = RestartButton(this)
       ..position = Vector2(size.x - 140, 40);
     add(restartButton);
+
+    // Add undo button
+    _undoButton = ButtonComponent(
+      button: RectangleComponent(
+        size: Vector2(80, 40),
+        paint: Paint()..color = const Color(0xFF1565C0),
+      ),
+      position: Vector2(size.x - 240, 40),
+      onPressed: () => undoLastMove(),
+      children: [
+        TextComponent(
+          text: 'Undo',
+          position: Vector2(40, 20),
+          anchor: Anchor.center,
+          textRenderer: TextPaint(
+            style: const TextStyle(
+              fontSize: 24,
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ],
+    );
+    add(_undoButton);
 
     _instructionsText = TextComponent(
       text:
@@ -138,6 +196,15 @@ class NumberPuzzleGame extends FlameGame {
     final emptyIndex = tiles.indexWhere((t) => t.isEmpty);
     final emptyTile = tiles[emptyIndex];
 
+    // Store move in history
+    moveHistory.add(
+      _GameMove(
+        tileNumber: tile.number,
+        originalPosition: tile.position.clone(),
+        targetPosition: emptyTile.position.clone(),
+      ),
+    );
+
     // Store original positions
     final tileOriginalPos = tile.position.clone();
 
@@ -158,7 +225,9 @@ class NumberPuzzleGame extends FlameGame {
     Future.delayed(
       Duration(milliseconds: (Tile.moveDuration * 1000).toInt()),
       () {
-        checkCompletion();
+        if (!isComplete) {
+          checkCompletion();
+        }
       },
     );
   }
@@ -209,6 +278,8 @@ class NumberPuzzleGame extends FlameGame {
   }
 
   void checkCompletion() {
+    if (isMoving) return;
+
     bool completed = true;
     for (int i = 0; i < tiles.length - 1; i++) {
       final row = i ~/ gridSize;
@@ -237,10 +308,37 @@ class NumberPuzzleGame extends FlameGame {
           ),
     );
 
-    if (completed && lastTile.isEmpty && !isComplete) {
+    if (completed && lastTile.isEmpty) {
       isComplete = true;
       add(_completionText);
+      overlays.add('gameOver');
     }
+  }
+
+  void undoLastMove() {
+    if (moveHistory.isEmpty || isMoving || isComplete) return;
+
+    final lastMove = moveHistory.removeLast();
+
+    // Get the tiles involved in the last move
+    final tile = tiles.firstWhere((t) => t.number == lastMove.tileNumber);
+    final emptyTile = tiles.firstWhere((t) => t.isEmpty);
+
+    // Swap their positions back
+    final tileIndex = tiles.indexOf(tile);
+    final emptyIndex = tiles.indexOf(emptyTile);
+
+    tile.moveTo(lastMove.originalPosition);
+    emptyTile.position = lastMove.targetPosition;
+    emptyTile.targetPosition = lastMove.targetPosition;
+    emptyTile.startPosition = lastMove.targetPosition;
+
+    // Update tiles list
+    tiles[tileIndex] = emptyTile;
+    tiles[emptyIndex] = tile;
+
+    moves--;
+    _updateMovesText();
   }
 
   void restartGame() {
@@ -278,4 +376,34 @@ class NumberPuzzleGame extends FlameGame {
       _borderPaint,
     );
   }
+
+  void checkGameCompletion() {
+    if (!isComplete) {
+      bool completed = true;
+      for (int i = 0; i < tiles.length - 1; i++) {
+        if (tiles[i].number != i + 1) {
+          completed = false;
+          break;
+        }
+      }
+
+      if (completed) {
+        isComplete = true;
+        overlays.add('gameOver');
+      }
+    }
+  }
+}
+
+// Add class to store move information
+class _GameMove {
+  final int tileNumber;
+  final Vector2 originalPosition;
+  final Vector2 targetPosition;
+
+  _GameMove({
+    required this.tileNumber,
+    required this.originalPosition,
+    required this.targetPosition,
+  });
 }
