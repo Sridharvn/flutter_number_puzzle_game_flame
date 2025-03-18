@@ -86,6 +86,25 @@ class Tile extends RectangleComponent with TapCallbacks {
     game.setTileAnimating(false);
   }
 
+  Future<void> moveTo(Vector2 targetPosition) async {
+    game.setTileAnimating(true);
+    double moveSpeed = 600; // pixels per second
+    double distance = position.distanceTo(targetPosition);
+    double duration = (distance / moveSpeed)
+        .clamp(0.1, double.infinity); // Minimum duration of 0.1 seconds
+    await add(
+      MoveEffect.to(
+        targetPosition,
+        EffectController(
+          duration: duration,
+          curve: Curves.easeInOut,
+        ),
+      ),
+    );
+    position = targetPosition;
+    game.setTileAnimating(false);
+  }
+
   @override
   void render(Canvas canvas) {
     if (number < game.gridSize * game.gridSize) {
