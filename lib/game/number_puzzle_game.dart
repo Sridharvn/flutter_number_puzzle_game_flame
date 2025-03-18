@@ -11,6 +11,7 @@ class NumberPuzzleGame extends FlameGame {
   late Vector2 boardPosition;
   int moves = 0;
   bool isComplete = false;
+  bool isMoving = false;
   final Paint _borderPaint =
       Paint()
         ..color = const Color(0xFF0D47A1)
@@ -30,10 +31,8 @@ class NumberPuzzleGame extends FlameGame {
     final boardSize = (tileSize + padding) * gridSize - padding;
     boardPosition = Vector2((size.x - boardSize) / 2, (size.y - boardSize) / 2);
 
-    // Create and shuffle tiles
     initializeTiles();
 
-    // Add instructions
     _instructionsText = TextComponent(
       text:
           "Tap tiles next to the empty space to move them.\nArrange numbers from 1-15 in order!",
@@ -49,7 +48,6 @@ class NumberPuzzleGame extends FlameGame {
     );
     add(_instructionsText);
 
-    // Add moves counter
     _movesText = TextComponent(
       position: Vector2(20, 40),
       textRenderer: TextPaint(
@@ -62,7 +60,6 @@ class NumberPuzzleGame extends FlameGame {
     );
     add(_movesText);
 
-    // Add completion text (hidden initially)
     _completionText = TextComponent(
       text: "Puzzle Completed!",
       position: Vector2(size.x / 2, size.y - 100),
@@ -79,7 +76,6 @@ class NumberPuzzleGame extends FlameGame {
   }
 
   void initializeTiles() {
-    // Create tiles in solved state first
     tiles = List.generate(gridSize * gridSize, (index) {
       final tile = Tile(
         index + 1,
@@ -93,29 +89,28 @@ class NumberPuzzleGame extends FlameGame {
         boardPosition.x + col * (tile.size.x + padding),
         boardPosition.y + row * (tile.size.y + padding),
       );
+      tile.targetPosition = tile.position.clone();
 
       return tile;
     });
 
-    // Shuffle tiles until we get a solvable configuration
     do {
       shuffleTiles();
     } while (!isSolvable());
 
-    // Add all tiles to game
     tiles.forEach(add);
   }
 
   void shuffleTiles() {
     final random = Random();
-    // Fisher-Yates shuffle, excluding the empty tile
     for (int i = tiles.length - 2; i > 0; i--) {
       final j = random.nextInt(i + 1);
       if (j != tiles.length - 1) {
-        // Don't move empty tile during shuffle
-        final tempPos = tiles[i].position;
-        tiles[i].position = tiles[j].position;
+        final tempPos = tiles[i].position.clone();
+        tiles[i].position = tiles[j].position.clone();
         tiles[j].position = tempPos;
+        tiles[i].targetPosition = tiles[i].position.clone();
+        tiles[j].targetPosition = tiles[j].position.clone();
 
         final temp = tiles[i];
         tiles[i] = tiles[j];
@@ -124,11 +119,63 @@ class NumberPuzzleGame extends FlameGame {
     }
   }
 
+  @override
+  void update(double dt) {
+    super.update(dt);
+    isMoving = tiles.any((tile) => tile.isMoving);
+  }
+
+  void onTileTapped(Tile tile) {
+    if (!canMoveTile(tile) || isMoving) return;
+
+    final tileIndex = tiles.indexOf(tile);
+    final emptyIndex = tiles.indexWhere((t) => t.isEmpty);
+    final emptyTile = tiles[emptyIndex];
+
+    // Store original positions
+    final tileOriginalPos = tile.position.clone();
+
+    // Move the tiles
+    tile.moveTo(emptyTile.position.clone());
+    emptyTile.position = tileOriginalPos;
+    emptyTile.targetPosition = tileOriginalPos;
+    emptyTile.startPosition = tileOriginalPos;
+
+    // Update tiles list
+    tiles[tileIndex] = emptyTile;
+    tiles[emptyIndex] = tile;
+
+    moves++;
+    _updateMovesText();
+
+    // Wait for movement duration before checking completion
+    Future.delayed(
+      Duration(milliseconds: (Tile.moveDuration * 1000).toInt()),
+      () {
+        checkCompletion();
+      },
+    );
+  }
+
+  bool canMoveTile(Tile tile) {
+    if (isMoving) return false;
+
+    final tileIndex = tiles.indexOf(tile);
+    final emptyIndex = tiles.indexWhere((t) => t.isEmpty);
+
+    final row = tileIndex ~/ gridSize;
+    final col = tileIndex % gridSize;
+    final emptyRow = emptyIndex ~/ gridSize;
+    final emptyCol = emptyIndex % gridSize;
+
+    return (row == emptyRow && (col - emptyCol).abs() == 1) ||
+        (col == emptyCol && (row - emptyRow).abs() == 1);
+  }
+
   bool isSolvable() {
     int inversions = 0;
     int emptyTileRow = 0;
 
-    // Create flat list of numbers for counting inversions
     List<int> numbers = [];
     for (int i = 0; i < tiles.length; i++) {
       if (!tiles[i].isEmpty) {
@@ -138,7 +185,6 @@ class NumberPuzzleGame extends FlameGame {
       }
     }
 
-    // Count inversions
     for (int i = 0; i < numbers.length - 1; i++) {
       for (int j = i + 1; j < numbers.length; j++) {
         if (numbers[i] > numbers[j]) {
@@ -147,48 +193,13 @@ class NumberPuzzleGame extends FlameGame {
       }
     }
 
-    // For a 4x4 puzzle:
-    // If empty tile is on even row from bottom and inversions odd, solvable
-    // If empty tile is on odd row from bottom and inversions even, solvable
     final emptyTileRowFromBottom = gridSize - 1 - emptyTileRow;
     return (emptyTileRowFromBottom % 2 == 0 && inversions % 2 == 1) ||
         (emptyTileRowFromBottom % 2 == 1 && inversions % 2 == 0);
   }
 
-  void onTileTapped(Tile tile) {
-    if (!canMoveTile(tile)) return;
-
-    final tileIndex = tiles.indexOf(tile);
-    final emptyIndex = tiles.indexWhere((t) => t.isEmpty);
-
-    // Swap positions
-    final tilePos = tile.position.clone();
-    tile.position = tiles[emptyIndex].position.clone();
-    tiles[emptyIndex].position = tilePos;
-
-    // Update tiles list
-    final temp = tiles[tileIndex];
-    tiles[tileIndex] = tiles[emptyIndex];
-    tiles[emptyIndex] = temp;
-
-    moves++;
-    _updateMovesText();
-
-    checkCompletion(); // Fixed method name here
-  }
-
-  bool canMoveTile(Tile tile) {
-    final tileIndex = tiles.indexOf(tile);
-    final emptyIndex = tiles.indexWhere((t) => t.isEmpty);
-
-    // Check if tile is adjacent to empty space
-    final row = tileIndex ~/ gridSize;
-    final col = tileIndex % gridSize;
-    final emptyRow = emptyIndex ~/ gridSize;
-    final emptyCol = emptyIndex % gridSize;
-
-    return (row == emptyRow && (col - emptyCol).abs() == 1) ||
-        (col == emptyCol && (row - emptyRow).abs() == 1);
+  void _updateMovesText() {
+    _movesText.text = 'Moves: $moves';
   }
 
   void checkCompletion() {
@@ -211,7 +222,6 @@ class NumberPuzzleGame extends FlameGame {
       }
     }
 
-    // Check if empty tile is in the last position
     final lastTile = tiles.firstWhere(
       (t) =>
           t.position ==
@@ -220,16 +230,11 @@ class NumberPuzzleGame extends FlameGame {
             boardPosition.y + (gridSize - 1) * (tiles[0].size.y + padding),
           ),
     );
-    completed = completed && lastTile.isEmpty;
 
-    isComplete = completed;
-    if (completed) {
+    if (completed && lastTile.isEmpty && !isComplete) {
+      isComplete = true;
       add(_completionText);
     }
-  }
-
-  void _updateMovesText() {
-    _movesText.text = "Moves: $moves";
   }
 
   @override
@@ -237,7 +242,7 @@ class NumberPuzzleGame extends FlameGame {
     super.render(canvas);
 
     // Draw board border
-    final boardSize = (80.0 + padding) * gridSize - padding;
+    final boardSize = (tiles[0].size.x + padding) * gridSize - padding;
     final rect = Rect.fromLTWH(
       boardPosition.x - padding,
       boardPosition.y - padding,
@@ -248,8 +253,5 @@ class NumberPuzzleGame extends FlameGame {
       RRect.fromRectAndRadius(rect, const Radius.circular(12)),
       _borderPaint,
     );
-
-    // Update moves text
-    _movesText.text = "Moves: $moves";
   }
 }
