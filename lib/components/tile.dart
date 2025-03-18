@@ -70,7 +70,8 @@ class Tile extends RectangleComponent with TapCallbacks {
     Vector2 targetPosition = game.getTargetPosition(this);
     double moveSpeed = 600; // pixels per second
     double distance = position.distanceTo(targetPosition);
-    double duration = distance / moveSpeed;
+    double duration = (distance / moveSpeed)
+        .clamp(0.1, double.infinity); // Minimum duration of 0.1 seconds
 
     await add(
       MoveEffect.to(
