@@ -226,17 +226,58 @@ class NumberPuzzleGame extends FlameGame {
   }
 
   Future<void> _moveTowardsSolution() async {
-    int emptyIndex = tiles.indexWhere((t) => t.number == gridSize * gridSize);
-    int emptyRow = emptyIndex ~/ gridSize;
-    int emptyCol = emptyIndex % gridSize;
+    // Find the next tile that's out of place
+    for (int targetPos = 0; targetPos < tiles.length; targetPos++) {
+      int targetNumber = targetPos + 1;
+      if (targetNumber == gridSize * gridSize) continue; // Skip empty tile
 
-    // Find the correct tile that should be in the empty position
-    int targetNumber = emptyRow * gridSize + emptyCol + 1;
-    int currentIndex = tiles.indexWhere((t) => t.number == targetNumber);
+      int currentIndex = tiles.indexWhere((t) => t.number == targetNumber);
+      if (currentIndex != targetPos) {
+        // This tile needs to move
+        int emptyIndex =
+            tiles.indexWhere((t) => t.number == gridSize * gridSize);
 
-    if (currentIndex != emptyIndex && canMoveTile(tiles[currentIndex])) {
-      await tiles[currentIndex].animateMove();
+        // If empty tile is not adjacent to the target tile
+        while (!_areAdjacent(currentIndex, emptyIndex)) {
+          // Move empty tile towards the target
+          int emptyRow = emptyIndex ~/ gridSize;
+          int emptyCol = emptyIndex % gridSize;
+          int targetRow = currentIndex ~/ gridSize;
+          int targetCol = currentIndex % gridSize;
+
+          // Decide which direction to move the empty tile
+          int moveIndex;
+          if (emptyRow != targetRow) {
+            moveIndex =
+                emptyIndex + (emptyRow < targetRow ? gridSize : -gridSize);
+          } else {
+            moveIndex = emptyIndex + (emptyCol < targetCol ? 1 : -1);
+          }
+
+          // Move the tile into the empty space
+          if (canMoveTile(tiles[moveIndex])) {
+            await tiles[moveIndex].animateMove();
+            return; // Return after one move
+          }
+        }
+
+        // Move the target tile if it's adjacent to empty space
+        if (canMoveTile(tiles[currentIndex])) {
+          await tiles[currentIndex].animateMove();
+          return; // Return after one move
+        }
+      }
     }
+  }
+
+  bool _areAdjacent(int index1, int index2) {
+    int row1 = index1 ~/ gridSize;
+    int col1 = index1 % gridSize;
+    int row2 = index2 ~/ gridSize;
+    int col2 = index2 % gridSize;
+
+    return (row1 == row2 && (col1 - col2).abs() == 1) ||
+        (col1 == col2 && (row1 - row2).abs() == 1);
   }
 
   void restartGame() => restart();
