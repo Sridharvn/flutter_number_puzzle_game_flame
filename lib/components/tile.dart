@@ -3,13 +3,15 @@ import 'package:flame/events.dart';
 import 'package:flutter/material.dart';
 import '../game/number_puzzle_game.dart';
 
-class Tile extends PositionComponent with TapCallbacks {
+class Tile extends PositionComponent with TapCallbacks, HoverCallbacks {
   final int number;
   final Paint _paint = Paint()..color = const Color(0xFF1565C0);
   final Paint _textBgPaint = Paint()..color = const Color(0xFFBBDEFB);
+  final Paint _hoverPaint = Paint()..color = const Color(0xFF2196F3);
   late final TextComponent _numberText;
   final NumberPuzzleGame game;
   bool isEmpty;
+  bool isHovered = false;
 
   Tile(this.number, this.game, {this.isEmpty = false})
     : super(size: Vector2.all(80)) {
@@ -41,15 +43,47 @@ class Tile extends PositionComponent with TapCallbacks {
   }
 
   @override
+  void onHoverEnter() {
+    if (!isEmpty && game.canMoveTile(this)) {
+      isHovered = true;
+    }
+  }
+
+  @override
+  void onHoverExit() {
+    isHovered = false;
+  }
+
+  @override
   void render(Canvas canvas) {
+    if (isEmpty) return;
+
     final rect = Rect.fromLTWH(0, 0, size.x, size.y);
     final rrect = RRect.fromRectAndRadius(rect, const Radius.circular(8));
 
-    if (!isEmpty) {
-      canvas.drawRRect(rrect, _paint);
+    // Draw tile background
+    canvas.drawRRect(
+      rrect,
+      isHovered && game.canMoveTile(this) ? _hoverPaint : _paint,
+    );
+
+    // Draw inner background
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect.deflate(4), const Radius.circular(6)),
+      _textBgPaint,
+    );
+
+    // Draw movement indicator if the tile can be moved
+    if (game.canMoveTile(this)) {
+      final indicatorPaint =
+          Paint()
+            ..color = const Color(0xFF4CAF50)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 3;
+
       canvas.drawRRect(
-        RRect.fromRectAndRadius(rect.deflate(4), const Radius.circular(6)),
-        _textBgPaint,
+        RRect.fromRectAndRadius(rect.deflate(2), const Radius.circular(7)),
+        indicatorPaint,
       );
     }
   }
