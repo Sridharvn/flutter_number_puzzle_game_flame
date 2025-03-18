@@ -3,6 +3,7 @@ import 'package:flame/game.dart';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 import '../components/tile.dart';
+import '../components/restart_button.dart';
 
 class NumberPuzzleGame extends FlameGame {
   static const int gridSize = 4;
@@ -32,6 +33,11 @@ class NumberPuzzleGame extends FlameGame {
     boardPosition = Vector2((size.x - boardSize) / 2, (size.y - boardSize) / 2);
 
     initializeTiles();
+
+    // Add restart button
+    final restartButton = RestartButton(this)
+      ..position = Vector2(size.x - 140, 40);
+    add(restartButton);
 
     _instructionsText = TextComponent(
       text:
@@ -235,6 +241,24 @@ class NumberPuzzleGame extends FlameGame {
       isComplete = true;
       add(_completionText);
     }
+  }
+
+  void restartGame() {
+    // Remove completion text if present
+    if (isComplete) {
+      remove(_completionText);
+      isComplete = false;
+    }
+
+    // Reset moves counter
+    moves = 0;
+    _updateMovesText();
+
+    // Reset and shuffle tiles
+    for (final tile in tiles) {
+      tile.removeFromParent();
+    }
+    initializeTiles();
   }
 
   @override
