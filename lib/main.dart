@@ -55,6 +55,37 @@ class _GameScreenState extends State<GameScreen> {
         moves = newMoves;
       });
     };
+    game.onShowSurrenderConfirmation = () {
+      _showSurrenderConfirmation();
+    };
+  }
+
+  void _showSurrenderConfirmation() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Surrender?'),
+          content: const Text(
+              'Are you sure you want to give up? The solution will be shown.'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            TextButton(
+              child: const Text('Surrender'),
+              onPressed: () {
+                Navigator.of(context).pop();
+                game.surrender();
+              },
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override

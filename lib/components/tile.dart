@@ -9,7 +9,6 @@ class Tile extends RectangleComponent with TapCallbacks {
   final int number;
   final NumberPuzzleGame game;
   late TextComponent _textComponent;
-  bool _isAnimating = false;
 
   Tile(this.number, this.game)
       : super(
@@ -60,29 +59,30 @@ class Tile extends RectangleComponent with TapCallbacks {
 
   @override
   bool onTapDown(TapDownEvent event) {
-    if (!_isAnimating && game.canMoveTile(this)) {
-      _animateMove();
+    if (game.canMoveTile(this)) {
+      animateMove();
     }
     return false;
   }
 
-  void _animateMove() {
-    _isAnimating = true;
+  Future<void> animateMove() async {
+    game.setTileAnimating(true);
     Vector2 targetPosition = game.getTargetPosition(this);
     double moveSpeed = 600; // pixels per second
     double distance = position.distanceTo(targetPosition);
     double duration = distance / moveSpeed;
 
-    add(
-      MoveToEffect(
+    await add(
+      MoveEffect.to(
         targetPosition,
-        EffectController(duration: duration),
-        onComplete: () {
-          _isAnimating = false;
-          game.onTileMoved();
-        },
+        EffectController(
+          duration: duration,
+          curve: Curves.easeInOut,
+        ),
       ),
     );
+
+    game.setTileAnimating(false);
   }
 
   @override
